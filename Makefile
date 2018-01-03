@@ -1,0 +1,18 @@
+copy_vim_files:
+	@if [ ! -d "./.vim" ]; then cp -r -L "$$HOME/.vim" ./.vim; fi
+	@if [ ! -f "./.vimrc" ]; then cp -L "$$HOME/.vimrc" ./.vimrc; fi
+
+remove_vim_files:
+	@rm -rf ./.vim
+	@rm ./.vimrc
+
+build: copy_vim_files
+	@docker build -t python-container-with-vim .
+
+run: build
+	@docker run -it -v "$$(pwd)":/app python-container-with-vim /bin/bash
+
+clean: remove_vim_files
+	-@docker rmi -f python-container-with-vim &> /dev/null || true
+
+rebuild: clean run
