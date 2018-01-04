@@ -2,6 +2,9 @@
 .vim
 .vimrc
 
+# Runtime generated sqlite3 databases
+*.db
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
