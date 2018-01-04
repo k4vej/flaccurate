@@ -86,6 +86,11 @@ def get_flac_md5_signature( filename ):
         logging.error( 'Failed to open file: %s', err )
     #if debug: print( vars( audiofile.info ) )
     logging.debug('get_flac_md5_signature( %s ) returning: %s', filename, str(md5))
+
+    # Explicitly cast this to string so we do not end up with any ambiguity
+    # over it being a really long number. During db insertion, the Pythonic
+    # duck typing an sqlite column is subject to has resulted in problems with
+    # what looks like an md5sum value looking like a massive integer causing INT overflow errors
     return str(md5)
 
 def itterate_iglob( filetype ):
