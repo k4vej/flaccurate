@@ -8,11 +8,19 @@ This strategy centers around a filesystem with “bit rot” protection in the f
 flaccurate focuses primarily on the flac file format and its built-in data md5sum.  It will catalogue audio files, recording the md5 of the hash.  On subsequent runs, if it detects any deviation of this hash it will notify you.  For me it is kind of redundant given all of the steps I have outlined above, but it does act as an integrity checker with which to be 100% confident nothing is changing, that you don’t expect to change, over time.
 
 How?
-Specification for flac file format is available here:
+
+
+Appendix
+Specification for ID3 file format:
+http://id3.org
+
+Specification for flac file format:
 https://xiph.org/flac/format.html
 
-The great Python audio library mutagen is used extensively to accomplish most of the work:
+The Python audio library mutagen is used to accomplish flac metadata parsing:
 https://mutagen.readthedocs.io/en/latest/index.html
 
-Also considered python-audio-tools which looked like a nicer API, but is not packaged in Debian repo, and at the time of writing has not been updated since 2015:
+Spent a lot of time considering python-audio-tools, but is not packaged in Debian repo, and at the time of writing has not been updated since 2015.
 http://audiotools.sourceforge.net/index.html
+Uploaded to PyPi by a third party contributor (not the original author) under the name of:
+fmoo-audiotools (see: https://github.com/tuffy/python-audio-tools/issues/33)
