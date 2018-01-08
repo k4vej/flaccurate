@@ -15,4 +15,7 @@ run: build
 clean: remove_vim_files
 	-@docker rmi -f python-container-with-vim &> /dev/null || true
 
+test:
+	PYTHONPATH=. pytest
+
 rebuild: clean run
