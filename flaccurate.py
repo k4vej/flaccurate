@@ -56,7 +56,13 @@ def _logging_init():
         'critical': logging.CRITICAL
     }
 
-    logging.basicConfig( level=LEVELS.get(log_level, logging.NOTSET) )
+    logging.basicConfig(
+        level=LEVELS.get(
+            log_level,
+            logging.NOTSET
+        ),
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
 
 def _db_init( db_file ):
     logging.debug('_db_init( %s )', db_file)
@@ -77,12 +83,11 @@ def _db_insert_hash( data ):
 def itterate_iglob( filetype ):
     logging.debug('itterate_iglob( %s )', filetype)
     for filename in glob.iglob(args.path + '**/*.' + filetype, recursive=True):
-        print( procs[filetype].md5(filename) )
-        #        _db_insert_hash({
-#            'filename' : filename,
-#            'md5' : get_flac_md5_signature(filename),
-#            'filetype' : filetype
-#        })
+        _db_insert_hash({
+            'filename' : filename,
+            'md5' : procs[filetype].md5(filename),
+            'filetype' : filetype
+        })
 
 def _init_plugins(path):
     # Inspired by importdir by Aurelien Lourot
