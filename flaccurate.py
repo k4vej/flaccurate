@@ -1,15 +1,13 @@
 import os
 import sys
 import glob
+import re
 import logging
 import argparse
 
 import sqlite3
 
-from flac import Flac
-from mp3 import mp3
-
-supported_filetypes = [ 'flac' ]
+supported_filetypes = [ 'flac', 'mp3' ]
 
 def _argparse_init():
     # Note: most defaults are explicitly set to None
@@ -79,13 +77,26 @@ def _db_insert_hash( data ):
 def itterate_iglob( filetype ):
     logging.debug('itterate_iglob( %s )', filetype)
     for filename in glob.iglob(args.path + '**/*.' + filetype, recursive=True):
-        print( mp3(filename).md5() )
+        print( procs[filetype].md5(filename) )
         #        _db_insert_hash({
 #            'filename' : filename,
 #            'md5' : get_flac_md5_signature(filename),
 #            'filetype' : filetype
 #        })
 
+def _init_plugins(path):
+    # Inspired by importdir by Aurelien Lourot
+    # See: https://gitlab.com/aurelien-lourot/importdir
+    global procs
+    procs = {}
+    sys.path.append(path) # adds provided directory to list we can import from
+    for entry in os.listdir(path):
+        if os.path.isfile(os.path.join(path, entry)):
+            regexp_result = re.search("(.+)\.py(c?)$", entry)
+            if regexp_result: # is a module file name
+                module_name = regexp_result.groups()[0]
+                print("Found module: " + module_name )
+                procs[ module_name ] =  __import__(module_name)              # ... import
 
 def _init():
     _argparse_init()
@@ -109,6 +120,8 @@ def _init():
         db_file = args.database
 
     _db_init(db_file)
+
+    _init_plugins( 'plugins' )
 
 
 # setup all the basics
