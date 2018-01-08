@@ -6,8 +6,8 @@ import argparse
 
 import sqlite3
 
-import mutagen
-from mutagen.flac import FLAC
+from flac import Flac
+from mp3 import mp3
 
 supported_filetypes = [ 'flac' ]
 
@@ -76,31 +76,15 @@ def _db_insert_hash( data ):
     except sqlite3.IntegrityError:
         logging.error("Failed to insert into database")
 
-def get_flac_md5_signature( filename ):
-    logging.debug('get_flac_md5_signature( %s )', filename)
-    md5 = None
-    try:
-        audiofile = FLAC( filename )
-        md5 = audiofile.info.md5_signature
-    except mutagen.MutagenError as err:
-        logging.error( 'Failed to open file: %s', err )
-    #if debug: print( vars( audiofile.info ) )
-    logging.debug('get_flac_md5_signature( %s ) returning: %s', filename, str(md5))
-
-    # Explicitly cast this to string so we do not end up with any ambiguity
-    # over it being a really long number. During db insertion, the Pythonic
-    # duck typing an sqlite column is subject to has resulted in problems with
-    # what looks like an md5sum value looking like a massive integer causing INT overflow errors
-    return str(md5)
-
 def itterate_iglob( filetype ):
     logging.debug('itterate_iglob( %s )', filetype)
     for filename in glob.iglob(args.path + '**/*.' + filetype, recursive=True):
-        _db_insert_hash({
-            'filename' : filename,
-            'md5' : get_flac_md5_signature(filename),
-            'filetype' : filetype
-        })
+        print( mp3(filename).md5() )
+        #        _db_insert_hash({
+#            'filename' : filename,
+#            'md5' : get_flac_md5_signature(filename),
+#            'filetype' : filetype
+#        })
 
 
 def _init():
