@@ -27,7 +27,7 @@ class mp3:
         self._md5 = None 
 
     def __str__( self ):
-        return self.filename + ': ' + self.md5
+        return self._filename + ': ' + str(self._md5)
 
     def md5( self ):
         """Calculate MD5 for an MP3 excluding ID3v1 and ID3v2 tags if                                                                                      

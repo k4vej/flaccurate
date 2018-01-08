@@ -7,7 +7,7 @@ class Flac:
         self._md5 = None 
 
     def __str__( self ):
-        return self.filename + ': ' + self.md5
+        return self._filename + ': ' + str(self._md5)
 
     def md5( self ):
         #hlogging.debug('get_flac_md5_signature( %s )', filename)
