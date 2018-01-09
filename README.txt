@@ -1,16 +1,60 @@
 flaccurate.py
 
-Why?
-Inspired by my obsessive compulsiveness combined with my digital hoarding.  I have a large collection of music, mostly in flac format.  After losing my entire digital collection on several occasions over the years, I slowly refined my archival methods and strategies.  The lessons I have learnt through these losses together with an improved understanding of storage hardware, operating systems and the underlying file systems mean I now have a robust and resilient architecture, with which to store my music collection (and any other files for that matter), for my entire life, without fear of loss of even an individual bit of data corruption.
+What?
 
-This strategy centers around a filesystem with “bit rot” protection in the form of data checksumming, namely btrfs.  When used with a RAID 1 mirror, the filesystem is able to detect and automatically correct (or at the very least notify) of any file corruption due to faulty hardware.  Combined with the a double layer of application level checksumming provided by the flac file format (whole file md5sum as well as per frame CRC) - corruption has nowhere to hide.  These features combined with a robust backup scheme == indefinite lossless digital file archival.
+flaccurate records an md5 checksum of the audio data portion of your music collection.  During the next run, it will recalculate the checksum, highlighting any deviation from previous records.  It is basically what flac provides baked in, but on steroids.  In short it helps keep your lossless audio, lossless.  The audio data only portion is particularly relevant, as this is what we need to keep unmodified - tags and other transient information is considered superfluous and does not contribute towards the objective of lossless audio.
 
-flaccurate focuses primarily on the flac file format and its built-in data md5sum.  It will catalogue audio files, recording the md5 of the hash.  On subsequent runs, if it detects any deviation of this hash it will notify you.  For me it is kind of redundant given all of the steps I have outlined above, but it does act as an integrity checker with which to be 100% confident nothing is changing, that you don’t expect to change, over time.
+Although flaccurate was originally designed to cater for flac files only, I succumbed to peer pressure and relented to a need to support other (inferior) file formats, on grounds of "the diverse nature of any good music collection" or something to that effect.  To that end, flaccurate is written based on a plugin system, which in theory allows arbitrary file types, supported through the presence of a corresponding plugin (See Appendix: Supported File Formats),
+
+flaccurate assumes the source data on its first run is perfect.  For flac files it is possible to verify this assumption checking the decoded audio data checksum against the recorded md5 baked into the file format (See Appendix: FLAC), for other file formats like mp3 this is not possible.  This clever feature of flac means there is no need to write out the checksum to a database to verify integrity in the future, for flac files at least.  However, there are many reasons why a separate record of the checksum data is a good idea:
+1. Convenience - storing and referencing the checksum data all in one place is a lot easier than trawling through individual files manually.
+2. Other file formats - don't have the same integrity features baked into their format or tooling.  Provides the same functionality for each file format which has a corresponding plugin to process it.
+3. Paranoia - there is nothing to stop the header containing the checksum itself becoming corrupt, leading to false positives; Suggesting the audio portion of the file is corrupt, when in fact it is simply the metadata in the header.  Unlikely - but not impossible.
+
 
 How?
 
+High level operational algorithm:
+	For each supported file type (read: plugin)
+    	For each matching file found
+			Calculate the audio md5 checksum 
+				If the database record exists for file 
+					Compare new checksum against database record
+						If checksum matches all good
+						If checksum doesn't match report it
+				If the database has no record for file - insert it for first time 
 
-Appendix
+Why?
+I am a digital hoarder.  I have obsessive compulsive tendencies.  I have a large digital collection of music (>1TB), mostly in flac format.  I have lost my entire digital collection on several occasions over the years.  These hard won lessons, together with an improved understanding of storage hardware, operating systems and underlying file systems have helped forge my current archival methods and strategies.  I now have a resilient architecture with which to store my music collection (and any other files for that matter), for my entire life, without fear of data loss, of even an individual bit.
+
+This strategy centers around a filesystem with data checksumming (See Appendix: BTRFS) to protect against “bit rot” and storage medium failings in the form of expected uncorrectable read errors.  In a mirrored RAID configuration, the filesystem is able to detect and automatically correct (or at the very least notify) of any file corruption.  Combined with the a double layer of application level checksumming provided by the flac file format - corruption has nowhere to hide (See Appendix: FLAC).  These features combined with a robust backup scheme is about as good as it gets for indefinite lossless digital file archival.
+
+Personally, the main feature of flaccurate is kind of redundant given all of the steps I have outlined above, but it does act as an integrity checker with which to be 100% confident nothing is changing over time.  To that end I would recommend running a verification once a month;  Specifically, run it before overwriting any known good backup copy you may have of your music files.
+
+
+Appendices
+==========
+
+Appendix: Supported File Formats
+flaccurate processes supported file types using a plugin system (See folder plugins/ in source).  Each plugin is a python module with the same filename as the extension it provides support for.  At the time of writing these include:
+ - flac 
+ - mp3
+
+The plugins derive from the abstract base class: abc.py - which dictates the mandatory interface that needs to be implemented for flaccurate to utilise each plugin in the same manner.  At the time of writing this is simply a function called md5( filename ).
+
+Appendix: FLAC
+Not one but two layers of application level data integrity checking.  An md5 checksum of the decoded audio data is stored in the header for overall audio integrity verification as well as per frame CRC (See https://xiph.org/flac/format.html)
+ 
+Verify the integrity of the decoded audio data stored in a flac file against its md5 checksum header:
+flac -t filename.flac
+
+Display the md5 checksum stored in the header:
+metaflac --show-md5sum filename.flac
+
+Appendix: BTRFS
+Hailed as the next generation linux filesystem.  It has a feature which is few and far between (especially in Microsoft land), which is - data checksumming;  Providing data integrity checking baked into the filesystem layer.  It has the capability to detect (and automatically correct in mirrored RAID) any file corruption during read operations.
+
+Appendix: Reference material
 Specification for ID3 file format:
 http://id3.org
 
@@ -24,3 +68,4 @@ Spent a lot of time considering python-audio-tools, but is not packaged in Debia
 http://audiotools.sourceforge.net/index.html
 Uploaded to PyPi by a third party contributor (not the original author) under the name of:
 fmoo-audiotools (see: https://github.com/tuffy/python-audio-tools/issues/33)
+
