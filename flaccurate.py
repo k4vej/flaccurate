@@ -4,6 +4,7 @@ import glob
 import re
 import logging
 import argparse
+import importlib
 
 import sqlite3
 
@@ -101,7 +102,7 @@ def _init_plugins(path):
             if regexp_result: # is a module file name
                 module_name = regexp_result.groups()[0]
                 print("Found module: " + module_name )
-                procs[ module_name ] =  __import__(module_name)              # ... import
+                procs[ module_name ] = importlib.import_module(module_name)              # ... import
 
 def _init():
     _argparse_init()
