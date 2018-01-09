@@ -29,7 +29,12 @@ def md5( filename ):
     logging.debug('get_mp3_md5_signature( %s )', filename)
     md5 = None
 
-    f = open(filename, "rb")
+    try:
+        f = open(filename, "rb")
+    except FileNotFoundError:
+        logging.error('Failed to open %s: Not found', filename)
+        return md5
+
     start = f.tell()
     finish = os.stat(filename).st_size;
     logging.debug('Audio data range set to %i-%i bytes', start, finish)
