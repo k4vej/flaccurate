@@ -10,6 +10,17 @@ import sqlite3
 
 supported_filetypes = [ 'flac', 'mp3' ]
 
+
+def main(args=None):
+    """The main routine."""
+
+    # setup all the basics
+    _init()
+
+    # recurse through all files and folders and determine the audio hash
+    for filetype in supported_filetypes:
+        itterate_iglob(filetype)
+
 def _argparse_init():
     # Note: most defaults are explicitly set to None
     # Setting fallback defaults is instead delayed until after
@@ -77,9 +88,9 @@ def _db_insert_hash( data ):
     # exception is still raised and must be caught
     try:
         with dbh:
-            dbh.execute("INSERT INTO hashes(filename, md5, filetype) values (?, ?, ?)", (data.get('filename'), data.get('md5'), data.get('filetype')) )
+            dbh.execute("INSERT OR IGNORE INTO hashes(filename, md5, filetype) values (?, ?, ?)", (data.get('filename'), data.get('md5'), data.get('filetype')) )
     except sqlite3.IntegrityError:
-        logging.error("Failed to insert into database")
+        logging.error("Failed to insert into database for: %s", data.get('filename'))
 
 def itterate_iglob( filetype ):
     logging.debug('itterate_iglob( %s )', filetype)
@@ -129,10 +140,5 @@ def _init():
 
     _init_plugins( 'plugins' )
 
-
-# setup all the basics
-_init()
-
-# recurse through all files and folders and determine the audio hash
-for filetype in supported_filetypes:
-    itterate_iglob(filetype)
+if __name__ == "__main__":
+    main()
