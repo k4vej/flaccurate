@@ -6,11 +6,10 @@ flaccurate records an md5 checksum of the audio data portion of your music colle
 
 Although flaccurate was originally designed to cater for flac files only, I succumbed to peer pressure and relented to a need to support other (inferior) file formats, on grounds of "the diverse nature of any good music collection" or something to that effect.  To that end, flaccurate is written based on a plugin system, which in theory allows arbitrary file types, supported through the presence of a corresponding plugin (See Appendix: Supported File Formats),
 
-flaccurate assumes the source data on its first run is perfect.  For flac files it is possible to verify this assumption checking the decoded audio data checksum against the recorded md5 baked into the file format (See Appendix: FLAC), for other file formats like mp3 this is not possible.  This clever feature of flac means there is no need to write out the checksum to a database to verify integrity in the future, for flac files at least.  However, there are many reasons why a separate record of the checksum data is a good idea:
+flaccurate assumes the source data on its first run is perfect.  For flac files it is possible to verify this assumption checking the decoded audio data checksum against the recorded md5 baked into the file format (See Appendix: FLAC), for other file formats like mp3 this is not possible.  This clever feature of flac removes the need to write out the checksum to a database for future verification, for flac files at least.  However, there are many reasons why a separate record of the checksum data is a good idea:
 1. Convenience - storing and referencing the checksum data all in one place is a lot easier than trawling through individual files manually.
-2. Other file formats - don't have the same integrity features baked into their format or tooling.  Provides the same functionality for each file format which has a corresponding plugin to process it.
-3. Paranoia - there is nothing to stop the header containing the checksum itself becoming corrupt, leading to false positives; Suggesting the audio portion of the file is corrupt, when in fact it is simply the metadata in the header.  Unlikely - but not impossible.
-
+2. Other file formats - don't have the same clever integrity features baked into their format or tooling.  flaccurate provides this same integrity checking feature for every supported file format.
+3. Paranoia - there is nothing to stop the header containing the checksum itself becoming corrupt, leading to a false positive - suggesting the audio portion of the file is corrupt, when in fact it is simply the metadata in the header.  Unlikely - but not impossible.  flaccurate provides an external analysis tool, using checksum records stored in a database, separate and distinct from the source files it catalogues.  As a further layer of paranoia, flaccurate also maintains a checksum of the complete database, which is calculated and verified before use (a feature I like to call: checksum introspection).
 
 How?
 
@@ -31,9 +30,6 @@ This strategy centers around a filesystem with data checksumming (See Appendix: 
 
 Personally, the main feature of flaccurate is kind of redundant given all of the steps I have outlined above, but it does act as an integrity checker with which to be 100% confident nothing is changing over time.  To that end I would recommend running a verification once a month;  Specifically, run it before overwriting any known good backup copy you may have of your music files.
 
-
-Appendices
-==========
 
 Appendix: Supported File Formats
 flaccurate processes supported file types using a plugin system (See folder plugins/ in source).  Each plugin is a python module with the same filename as the extension it provides support for.  At the time of writing these include:
@@ -69,3 +65,12 @@ http://audiotools.sourceforge.net/index.html
 Uploaded to PyPi by a third party contributor (not the original author) under the name of:
 fmoo-audiotools (see: https://github.com/tuffy/python-audio-tools/issues/33)
 
+TODO
+- Implement operational algorithm not just calc md5 and insert into db
+- Update flac plugin to use a calculated md5 of the decoded audio data instead of the md5_signature in the header
+- Update mp3 plugin to make use of the easy header size calculation (for ID3v2 flags anyway)
+- Update mp3 plugin debug log output
+- Update mp3 plugin to reflect identification of ID3v2.4 headers correctly
+- Add accuraterip support
+- Add flac plugin support to compare md5sum vs header record
+- Add ABC
