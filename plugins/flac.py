@@ -1,6 +1,21 @@
 import logging
 logging.getLogger(__name__)
 
+def md5( filename ):
+    logging.debug('plugins.flac.md5( %s )', filename)
+    import audiotools
+
+    md5 = None # Default return value if nothing happens
+
+    try:
+        pcm_data = audiotools.open(filename).to_pcm()
+    except (audiotools.UnsupportedFile, IOError) as err:
+        logging.error( 'Failed to open file %s', filename )
+    else:
+        md5 = _md5_pcm_data( pcm_data )
+
+    logging.debug('plugins.flac.md5( %s ) returning: %s', filename, md5)
+    return md5
 
 def streaminfo_md5( filename ):
     import mutagen
@@ -30,25 +45,18 @@ def streaminfo_md5( filename ):
     logging.debug('plugins.flac.streaminfo_md5( %s ) returning: %s', filename, str(md5))
     return md5
 
-def md5( filename ):
+def _md5_pcm_data( pcm_data ):
     import hashlib
     import audiotools
 
-    logging.debug('plugins.flac.md5( %s )', filename)
-    md5 = None
-
+    hasher = hashlib.md5()
     def update_md5( data ):
-        md5er.update(data)
-
-    md5er = hashlib.md5()
+        hasher.update(data)
 
     try:
-        pcm_data = audiotools.open(filename).to_pcm()
         audiotools.transfer_framelist_data(pcm_data,update_md5)
-        pcm_data.close()
-        md5 = str(md5er.hexdigest())
-    except audiotools.UnsupportedFile as err:
-        logging.error( 'Failed to open file: %s', err )
-
-    logging.debug('plugins.flac.md5( %s ) returning: %s', filename, md5)
-    return md5
+    except (IOError, ValueError) as err:
+        logging.error( 'Failed to _md5_pcm_data: %s', err )
+        return None
+    else:
+        return str(hasher.hexdigest())
