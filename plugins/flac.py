@@ -8,11 +8,11 @@ def md5( filename ):
     md5 = None # Default return value if nothing happens
 
     try:
-        pcm_data = audiotools.open(filename).to_pcm()
+        audio_data = audiotools.open(filename).to_pcm()
     except (audiotools.UnsupportedFile, IOError) as err:
         logging.error( 'Failed to open file %s', filename )
     else:
-        md5 = _md5_pcm_data( pcm_data )
+        md5 = _md5_audio_data( audio_data )
 
     logging.debug('plugins.flac.md5( %s ) returning: %s', filename, md5)
     return md5
@@ -45,7 +45,7 @@ def streaminfo_md5( filename ):
     logging.debug('plugins.flac.streaminfo_md5( %s ) returning: %s', filename, str(md5))
     return md5
 
-def _md5_pcm_data( pcm_data ):
+def _md5_audio_data( audio_data ):
     import hashlib
     import audiotools
 
@@ -54,9 +54,9 @@ def _md5_pcm_data( pcm_data ):
         hasher.update(data)
 
     try:
-        audiotools.transfer_framelist_data(pcm_data,update_md5)
+        audiotools.transfer_framelist_data(audio_data,update_md5)
     except (IOError, ValueError) as err:
-        logging.error( 'Failed to _md5_pcm_data: %s', err )
+        logging.error( 'Failed to _md5_audio_data: %s', err )
         return None
     else:
         return str(hasher.hexdigest())
