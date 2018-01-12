@@ -19,10 +19,6 @@ from mutagen.id3 import ID3
 # Slurp mp3 header tag size into an array so it doesn't
 # need storing and processing as individual vars
 #
-# 3.
-# Consider using the easy way (doesn't work for v1 tags)
-# easyway = ID3( filename )
-# logging.debug( 'ID3 Version:' + str(easyway.version) + ' ID3 Tag size:' + str(easyway.size) )
 def md5( filename ):
     """Calculate MD5 for an MP3 excluding ID3v1 and ID3v2 tags if                                                                                      
     present. See www.id3.org for tag format specifications."""                                                                                         
