@@ -6,7 +6,6 @@ import struct
 import hashlib
 from collections import namedtuple
 from struct import *
-from mutagen.id3 import ID3
 
 #TODO
 # 1.
@@ -30,21 +29,89 @@ def md5( filename ):
         logging.error('Failed to open %s: Not found', filename)
         return md5
 
-    start = f.tell()
-    finish = os.stat(filename).st_size;
-    logging.debug('plugins.mp3.md5( %s ): Audio range %i-%i bytes', filename, start, finish)
+    # default starting position is complete file
+    audiodata = {
+        'start' : f.tell(),
+        'finish' : os.stat(filename).st_size,
+    }
+    logging.debug('plugins.mp3.md5( %s ): Audio range %i-%i bytes', filename, audiodata.get('start'), audiodata.get('finish'))
 
     logging.debug('plugins.mp3.md5( %s ): Checking for ID3v1 tag', filename)
-    f.seek(-128, 2) # ID3v1 stored in last 128 bytes
-    header = f.read(3)
-    if( header == "TAG".encode('utf-8') ):
-        finish -= 128
-        logging.debug('plugins.mp3.md5( %s ): ID3v1 tag header found - range adjusted %i-%i bytes', filename, start, finish)
+    if( _id3v1( f, audiodata ) ):
+        logging.debug('plugins.mp3.md5( %s ): ID3v1 tag header found - range adjusted %i-%i bytes', filename, audiodata.get('start'), audiodata.get('finish'))
     else:
         logging.debug('plugins.mp3.md5( %s ): No ID3v1 tag found', filename)
 
+    logging.debug('plugins.mp3.md5( %s ): Checking for ID3v1 extended tag', filename)
+    if( _id3v1_extended( f, audiodata ) ):
+        logging.debug('plugins.mp3.md5( %s ): ID3v1 extended tag header found - range adjusted %i-%i bytes', filename, audiodata.get('start'), audiodata.get('finish'))
+    else:
+        logging.debug('plugins.mp3.md5( %s ): No ID3v1 extended tag found', filename)
+
     logging.debug('plugins.mp3.md5( %s ): Checking for ID3v2 tag', filename)
-    f.seek(0)
+    if( _id3v2( f, audiodata ) ):
+        logging.debug('plugins.mp3.md5( %s ): ID3v2 tag found - range adjusted %i-%i bytes', filename, audiodata.get('start'), audiodata.get('finish'))
+    else:
+        logging.debug('plugins.mp3.md5( %s ): No ID3v2 tag found', filename)
+
+    # Calculate MD5 using stuff between tags
+    f.seek(audiodata.get('start'))
+    md5 = _md5_audio_data(f.read(audiodata.get('finish')-audiodata.get('start')))
+    f.close()
+
+    logging.debug('plugins.mp3.md5( %s ) returning: %s', filename, md5)
+    return md5
+
+def _md5_audio_data( audio_data ):
+    import hashlib
+    import audiotools
+
+    hasher = hashlib.md5()
+    hasher.update(audio_data)
+
+    return str(hasher.hexdigest())
+
+def _id3v1( f, audiodata ):
+    logging.debug('plugins.mp3._id3v1()')
+    has_id3v1 = False
+
+    if( audiodata['finish'] < 128 ):
+        logging.debug('plugins.mp3._id3v1(): File too small to contain ID3v1 tag')
+        return has_id3v1
+
+    f.seek(-128, 2) # ID3v1 stored in last 128 bytes
+    header = f.read(3)
+    if( header == "TAG".encode('utf-8') ):
+        audiodata['finish'] -= 128
+        has_id3v1 = True
+
+    return has_id3v1
+
+def _id3v1_extended( f, audiodata ):
+    logging.debug('plugins.mp3._id3v1_extended()')
+    has_id3v1_extended = False
+
+    if( audiodata['finish'] < 227 ):
+        logging.debug('plugins.mp3._id3v1_extended(): File too small to contain ID3v1 extended tag')
+        return has_id3v1_extended
+
+    f.seek(-227, 2) # ID3v1 extended stored in 227 bytes before 128 byte ID3v1 tag
+    header = f.read(4)
+    if( header == "TAG+".encode('utf-8') ):
+        audiodata['finish'] -= 227
+        has_id3v1_extended = True
+
+    return has_id3v1_extended
+
+def _id3v2( f, audiodata ):
+    logging.debug('plugins.mp3._id3v2()')
+    has_id3v2 = False
+
+    if( audiodata.get('finish') < 10 ):
+        logging.debug('plugins.mp3._id3v2(): File too small to contain ID3v2 tag')
+        return has_id3v2
+
+    f.seek(0) # ID3v2 tag header is in first 10 bytes
     # ID3v2 header (see: http://id3.org/id3v2.4.0-structure)
     # 10 bytes as follows:
     # bytes content
@@ -61,31 +128,23 @@ def md5( filename ):
     #print(header)
 
     if( header.id3 == "ID3".encode('utf-8')):
+        has_id3v2 = True
         ID3v2 = 'ID3v2.' + str(header.majorver)
-        # Flat bit 4 means footer is present (10 bytes)                                                                                                
-        footer = header.flags & (1<<4)                                                                                                                        
+        #logging.debug('plugins.mp3._id3v2(): Version %s found', ID3v2)
+
         tagsize = (header.ss1<<21) + (header.ss2<<14) + (header.ss3<<7) + header.ss4                                                                                    
         #logging.debug('plugins.mp3.md5( %s ): ' + ID3v2 + ' body size %s bytes', filename, str(tagsize))
 
-        # Seek to end of ID3v2 tag                                                                                                                     
+        # Flat bit 4 means footer is present (10 bytes)
+        footer = header.flags & (1<<4)
+        if footer:
+            #logging.debug('plugins.mp3._id3v2(): %s footer found +10 bytes', ID3v2)
+            tagsize += 10
+
+        # Seek to end of ID3v2 tag
         f.seek(tagsize, 1)
 
-        if footer:
-            logging.debug('plugins.mp3.md5( %s ): ' + ID3v2 + ' footer found +10 bytes', filename)
-            f.seek(10, 1) # footer found progress fh position
-
         # fh current position should now be after all ID3v2 metadata
-        start = f.tell()
-        logging.debug('plugins.mp3.md5( %s ): ' + ID3v2 + ' tag header found - range adjusted %i-%i bytes', filename, start, finish)
-    else:
-        logging.debug('plugins.mp3.md5( %s ): No ID3v2 tag found', filename)
+        audiodata['start'] = f.tell()
 
-    # Calculate MD5 using stuff between tags                                                                                                           
-    f.seek(start)
-    h = hashlib.md5()
-    h.update(f.read(finish-start))                                                                                                                     
-    f.close()
-
-    md5 = str(h.hexdigest())
-    logging.debug('plugins.mp3.md5( %s ) returning: %s', filename, md5)
-    return md5
+    return has_id3v2
