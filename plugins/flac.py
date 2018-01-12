@@ -1,11 +1,12 @@
 import logging
 logging.getLogger(__name__)
 
-import mutagen
-from mutagen.flac import FLAC 
 
-def md5( filename ):
-    logging.debug('get_flac_md5_signature( %s )', filename)
+def streaminfo_md5( filename ):
+    import mutagen
+    from mutagen.flac import FLAC
+
+    logging.debug('plugins.flac.streaminfo_md5( %s )', filename)
     md5 = None
     try:
         audiofile = FLAC( filename )
@@ -26,7 +27,28 @@ def md5( filename ):
     except mutagen.MutagenError as err:
         logging.error( 'Failed to open file: %s', err )
 
-    logging.debug('get_flac_md5_signature( %s ) returning: %s', filename, str(md5))
-
+    logging.debug('plugins.flac.streaminfo_md5( %s ) returning: %s', filename, str(md5))
     return md5
 
+def md5( filename ):
+    import hashlib
+    import audiotools
+
+    logging.debug('plugins.flac.md5( %s )', filename)
+    md5 = None
+
+    def update_md5( data ):
+        md5er.update(data)
+
+    md5er = hashlib.md5()
+
+    try:
+        pcm_data = audiotools.open(filename).to_pcm()
+        audiotools.transfer_framelist_data(pcm_data,update_md5)
+        pcm_data.close()
+        md5 = str(md5er.hexdigest())
+    except audiotools.UnsupportedFile as err:
+        logging.error( 'Failed to open file: %s', err )
+
+    logging.debug('plugins.flac.md5( %s ) returning: %s', filename, md5)
+    return md5
