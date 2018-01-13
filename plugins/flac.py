@@ -1,30 +1,34 @@
+import hashlib
+import audiotools
+import mutagen
+from mutagen.flac import FLAC
+
 import logging
 logging.getLogger(__name__)
 
-def md5( filename ):
+def md5(filename):
     logging.debug('plugins.flac.md5( %s )', filename)
-    import audiotools
 
-    md5 = None # Default return value if nothing happens
+    _md5 = None  # Default return value if nothing happens
 
     try:
         audio_data = audiotools.open(filename).to_pcm()
     except (audiotools.UnsupportedFile, IOError) as err:
-        logging.error( 'Failed to open file %s', filename )
+        logging.error('Failed to open file %s: %s', filename, err)
     else:
-        md5 = _md5_audio_data( audio_data )
+        _md5 = _md5_audio_data(audio_data)
 
-    logging.debug('plugins.flac.md5( %s ) returning: %s', filename, md5)
-    return md5
+    logging.debug('plugins.flac.md5( %s ) returning: %s', filename, _md5)
+    return _md5
 
-def streaminfo_md5( filename ):
-    import mutagen
-    from mutagen.flac import FLAC
 
+def streaminfo_md5(filename):
     logging.debug('plugins.flac.streaminfo_md5( %s )', filename)
+
     md5 = None
+
     try:
-        audiofile = FLAC( filename )
+        audiofile = FLAC(filename)
         # mutagen.flac.FLAC.info() provides access to all content
         # from the STREAMINFO block in flac header.  The docs do not
         # mention md5_signature specifically, but looking at the content
@@ -38,25 +42,25 @@ def streaminfo_md5( filename ):
         # Zero padding seems to be getting stripped from formatted output,
         # so fixed with an rjust() to zero pad upto the max length of an md5
         # string of 32 characters.
-        md5 = ( "%02x" % audiofile.info.md5_signature ).rjust(32,'0')
+        md5 = ("%02x" % audiofile.info.md5_signature).rjust(32, '0')
     except mutagen.MutagenError as err:
-        logging.error( 'Failed to open file: %s', err )
+        logging.error('Failed to open file: %s', err)
 
     logging.debug('plugins.flac.streaminfo_md5( %s ) returning: %s', filename, str(md5))
     return md5
 
-def _md5_audio_data( audio_data ):
-    import hashlib
-    import audiotools
+
+def _md5_audio_data(audio_data):
 
     hasher = hashlib.md5()
-    def update_md5( data ):
+
+    def update_md5(data):
         hasher.update(data)
 
     try:
-        audiotools.transfer_framelist_data(audio_data,update_md5)
+        audiotools.transfer_framelist_data(audio_data, update_md5)
     except (IOError, ValueError) as err:
-        logging.error( 'Failed to _md5_audio_data: %s', err )
+        logging.error('Failed to _md5_audio_data: %s', err)
         return None
     else:
         return str(hasher.hexdigest())
