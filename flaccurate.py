@@ -5,6 +5,8 @@ import re
 import logging
 import argparse
 import importlib
+import filetype as filemagic
+import filetype.utils
 
 import sqlite3
 
@@ -132,12 +134,41 @@ class Flaccurate:
         count = 0
         for filename in glob.iglob(self.args.path + '**/*.' + filetype, recursive=True):
             count += 1
-            self._db_insert_hash({
-                'filename': filename,
-                'md5': self.plugins[filetype].md5(filename),
-                'filetype': filetype
-            })
+            if( self._valid_file(filename, filetype)):
+                self._db_insert_hash({
+                    'filename': filename,
+                    'md5': self.plugins[filetype].md5(filename),
+                    'filetype': filetype
+                })
+            else:
+                logging.info('Skipping invalid %s: %s', filetype, filename)
+
         logging.info('Processed %i %s files', count, filetype)
+
+    def _valid_file(self, filename, filetype):
+        logging.debug('_valid_file( %s, %s )', filename, filetype)
+        # Delegate file validation to the filetype module, has been#
+        # alias'd to filemagic on import - so it doesn't clash with
+        # our own internal references to a filetype variable.
+        # The filetype module does file magic checking in pure python,
+        # so no deps or bindings on libmagic or anything else.
+        # Interface is a bit clunky, considered duplicating its validation
+        # logic in each plugin, but placing the one very awkward call here
+        # means it will apply to every supported filetype (read: plugin)
+        # without any additional work.
+        #
+        # 1. We first need to retrieve a filemagic object of the type we want
+        # to validate against.  This in itself is a nightmare, as the
+        # get_type() function compares the argumenet passed in against its
+        # enumerated list of filetypes uses is() which does not play nicely
+        # with the argument we are passing ("filetype"), as it takes the form
+        # of a key from a dictionary.  So was never matching against its own
+        # extension string - need to jump through an intern() hoop to get the
+        # "correct string" for comparison.
+        # 2. We then need to pass in the appropriate bytes from the file being
+        # tested, so that the match() function can do its magic work.
+        # Return from match() is Boolean, so just pass it back to caller.
+        return filemagic.get_type(None,sys.intern(filetype)).match( filemagic.utils.get_signature_bytes( filename ) )
 
     def supported_filetypes(self):
         return self.plugins.keys()

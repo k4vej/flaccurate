@@ -3,3 +3,4 @@ pytest
 
 mutagen
 fmoo-audiotools
+filetype
