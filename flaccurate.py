@@ -12,12 +12,21 @@ import sqlite3
 
 
 def main(args=None):
-    """The main routine."""
-
     # For all supported filetypes,
     # recurse through the supplied path and determine the audio hash.
     # A supported filetype is determined by the presence of a
     # corresponding plugin for the file extension (see plugins folder).
+
+    # Operation as follows:
+    # For each supported file type (read: plugin) (see: process_filetype())
+    # For each matching file found in file type (see: itterate_iglob())
+    # Calculate the audio md5 checksum: (see: _process_file())
+    # 1. If the database record exists for file (see: _retrieve_checksum())
+    #       Compare new checksum against database record (see: _process_file())
+    #           If checksum matches all good
+    #           If checksum doesn't match report it
+    # 2. If the database has no record of file - insert it for first time (see: _insert_checksum())
+
     Flaccurate().process_all()
 
 
@@ -101,7 +110,7 @@ class Flaccurate:
     def _init_db(self):
         logging.debug('_init_db( %s )', self.db_file)
         dbh = sqlite3.connect(self.db_file)
-        dbh.execute("CREATE TABLE IF NOT EXISTS hashes(filename text PRIMARY KEY, md5 text NOT NULL, filetype text NOT NULL)")
+        dbh.execute("CREATE TABLE IF NOT EXISTS checksums(filename text PRIMARY KEY, md5 text NOT NULL, filetype text NOT NULL)")
         return dbh
 
     def _init_plugins(self):
@@ -119,29 +128,36 @@ class Flaccurate:
                     plugins[module_name] = importlib.import_module(module_name)
         return plugins
 
-    def _db_insert_hash(self, data):
-        logging.debug('_db_insert_hash( %s )', data)
+    def _calculate_checksum(self, filename, filetype):
+        logging.debug('_calculate_checksum( %s, %s )', filename, filetype)
+        return self.plugins[filetype].md5(filename)
+
+    def _insert_checksum(self, data):
+        logging.debug('_insert_checksum( %s )', data)
         # con.rollback() is called after the with block finishes with an exception, the
         # exception is still raised and must be caught
         try:
             with self.dbh:
-                self.dbh.execute("INSERT OR IGNORE INTO hashes(filename, md5, filetype) values (?, ?, ?)", (data.get('filename'), data.get('md5'), data.get('filetype')))
+                self.dbh.execute("INSERT OR IGNORE INTO checksums(filename, md5, filetype) values (?, ?, ?)", (data.get('filename'), data.get('md5'), data.get('filetype')))
         except sqlite3.IntegrityError:
             logging.error("Failed to insert into database for: %s", data.get('filename'))
+
+    def _retrieve_checksum(self, filename):
+        logging.debug('_retrieve_checksum( %s )', filename)
+        checksum = None
+
+        results = self.dbh.execute('SELECT md5 FROM checksums WHERE filename=?', (filename,))
+        checksum = results.fetchone()[0]
+
+        logging.debug('_retrieve_checksum( %s ): returning %s', filename, checksum)
+        return checksum
 
     def _itterate_iglob(self, filetype):
         logging.debug('itterate_iglob( %s )', filetype)
         count = 0
         for filename in glob.iglob(self.args.path + '**/*.' + filetype, recursive=True):
             count += 1
-            if( self._valid_file(filename, filetype)):
-                self._db_insert_hash({
-                    'filename': filename,
-                    'md5': self.plugins[filetype].md5(filename),
-                    'filetype': filetype
-                })
-            else:
-                logging.info('Skipping invalid %s: %s', filetype, filename)
+            self._process_file(filename, filetype)
 
         logging.info('Processed %i %s files', count, filetype)
 
@@ -169,6 +185,29 @@ class Flaccurate:
         # tested, so that the match() function can do its magic work.
         # Return from match() is Boolean, so just pass it back to caller.
         return filemagic.get_type(None,sys.intern(filetype)).match( filemagic.utils.get_signature_bytes( filename ) )
+
+    def _process_file(self, filename, filetype):
+        logging.debug('_process_file( %s, %s )', filename, filetype)
+
+        if(not self._valid_file(filename, filetype)):
+            logging.info('Skipping invalid %s: %s', filetype, filename)
+            return
+
+        checksum_calculated = self._calculate_checksum( filename, filetype )
+        checksum_record = self._retrieve_checksum( filename )
+
+        if( checksum_record is not None ):
+            if( checksum_calculated == checksum_record ):
+                logging.debug('_process_file( %s, %s ): Checksum verified', filename, filetype)
+            else:
+                logging.info('WARNING: %s Checksum failed (Current: %s Previous: %s)', filename, checksum_calculated, checksum_record)
+        else:
+            logging.debug('_process_file( %s, %s ): Inserting new checksum', filename, filetype)
+            self._insert_checksum({
+                'filename': filename,
+                'md5': checksum_calculated,
+                'filetype': filetype
+            })
 
     def supported_filetypes(self):
         return self.plugins.keys()

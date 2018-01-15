@@ -24,7 +24,7 @@ High level operational algorithm:
 				If the database has no record for file - insert it for first time 
 
 Why?
-I am a digital hoarder.  I have obsessive compulsive tendencies.  I have a large digital collection of music (>1TB), mostly in flac format.  I have lost my entire digital collection on several occasions over the years.  These hard won lessons, together with an improved understanding of storage hardware, operating systems and underlying file systems have helped forge my current archival methods and strategies.  I now have a resilient architecture with which to store my music collection (and any other files for that matter), for my entire life, without fear of data loss, of even an individual bit.
+I am a digital hoarder, with a digital collection of music >1TB in size, mostly in flac format.  I have OCD aspirations for curating and maintaining this music collection.  I have lost my entire digital collection on several occasions over the years.  This hard won lesson, together with an improved understanding of storage hardware, operating systems and underlying file systems have helped forge my current archival methods and strategies.  I now have a resilient architecture with which to store my music collection (and any other files for that matter), for my entire life, without fear of data loss, of even an individual bit.
 
 This strategy centers around a filesystem with data checksumming (See Appendix: BTRFS) to protect against “bit rot” and storage medium failings in the form of expected uncorrectable read errors.  In a mirrored RAID configuration, the filesystem is able to detect and automatically correct (or at the very least notify) of any file corruption.  Combined with the a double layer of application level checksumming provided by the flac file format - corruption has nowhere to hide (See Appendix: FLAC).  These features combined with a robust backup scheme is about as good as it gets for indefinite lossless digital file archival.
 
@@ -60,17 +60,11 @@ https://xiph.org/flac/format.html
 The Python audio library mutagen is used to accomplish flac metadata parsing:
 https://mutagen.readthedocs.io/en/latest/index.html
 
-Spent a lot of time considering python-audio-tools, but is not packaged in Debian repo, and at the time of writing has not been updated since 2015.
+Another Python audio library python audio tools is used for its flac to PCM functions.  Its packaging does not reflect the maturity of the library itself.  It is not packaged in Debian repo, and at the time of writing has not been updated since 2015.
 http://audiotools.sourceforge.net/index.html
 Uploaded to PyPi by a third party contributor (not the original author) under the name of:
 fmoo-audiotools (see: https://github.com/tuffy/python-audio-tools/issues/33)
 
 TODO
-- Implement operational algorithm not just calc md5 and insert into db
-- Update flac plugin to use a calculated md5 of the decoded audio data instead of the md5_signature in the header
-- Update mp3 plugin to make use of the easy header size calculation (for ID3v2 flags anyway)
-- Update mp3 plugin debug log output
-- Update mp3 plugin to reflect identification of ID3v2.4 headers correctly
 - Add accuraterip support
-- Add flac plugin support to compare md5sum vs header record
-- Add ABC
+- Possibly add abstract base class from which plugins derive their interface?
