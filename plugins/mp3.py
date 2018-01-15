@@ -10,12 +10,6 @@ logging.getLogger(__name__)
 # Add fallback to search through entire file for ID3
 # Inspired by: Perl CPAN module (MPEG::ID3v2Tag)
 # http://search.cpan.org/dist/MPEG-ID3v2Tag/lib/MPEG/ID3v2Tag.pm
-#
-# 2.
-# Slurp mp3 header tag size into an array so it doesn't
-# need storing and processing as individual vars
-#
-
 
 def md5(filename):
     """Calculate MD5 for an MP3 excluding ID3v1 and ID3v2 tags if
@@ -125,29 +119,26 @@ def _id3v2(mp3_fh, audiodata):
     # 2     version
     # 1     flags
     # 4     tag size (Synchsafe integer)
-    id3v2_header_template = namedtuple(
-        'id3v2_header_template', 'id3 majorver minorver flags ss1 ss2 ss3 ss4')
-    id3v2_struct_format = '!3s2BBBBBB'  # !: No padding is added when using non-native size and alignment
+    id3v2_header_template = namedtuple('id3v2_header_template', 'id3 majorver minorver flags tagsize_synchsafe')
+    id3v2_struct_format = '!3s2BBI'  # !: No padding is added when using non-native size and alignment
     id3v2_struct_format_size = struct.calcsize(id3v2_struct_format)
-    # logging.debug('plugins.mp3.md5( %s ): Calculated size of binary unpacking struct (%s) as: %i', filename, id3v2_struct_format, id3v2_struct_format_size)
+    #logging.debug('plugins.mp3.md5(): Calculated size of binary unpacking struct (%s) as: %i', id3v2_struct_format, id3v2_struct_format_size)
 
-    header = id3v2_header_template._make(
-        struct.unpack(id3v2_struct_format, mp3_fh.read(id3v2_struct_format_size)))
-    # print(header)
+    header = id3v2_header_template._make(struct.unpack(id3v2_struct_format, mp3_fh.read(id3v2_struct_format_size)))
+    #print(header)
 
     if(header.id3 == "ID3".encode('utf-8')):
         has_id3v2 = True
         ID3v2 = 'ID3v2.' + str(header.majorver)
-        # logging.debug('plugins.mp3._id3v2(): Version %s found', ID3v2)
+        #logging.debug('plugins.mp3._id3v2(): Version %s found', ID3v2)
 
-        tagsize = (header.ss1 << 21) + \
-            (header.ss2 << 14) + (header.ss3 << 7) + header.ss4
-        # logging.debug('plugins.mp3.md5( %s ): ' + ID3v2 + ' body size %s bytes', filename, str(tagsize))
+        tagsize = unsynchsafe( header.tagsize_synchsafe )
+        #logging.debug('plugins.mp3.md5(): %s body size %s bytes', ID3v2, str(tagsize))
 
         # Flat bit 4 means footer is present (10 bytes)
         footer = header.flags & (1 << 4)
         if footer:
-            # logging.debug('plugins.mp3._id3v2(): %s footer found +10 bytes', ID3v2)
+            #logging.debug('plugins.mp3._id3v2(): %s footer found +10 bytes', ID3v2)
             tagsize += 10
 
         # Seek to end of ID3v2 tag
@@ -157,3 +148,13 @@ def _id3v2(mp3_fh, audiodata):
         audiodata['start'] = mp3_fh.tell()
 
     return has_id3v2
+
+def unsynchsafe(num):
+    # Source: https://stuffivelearned.org/doku.php?id=misc:synchsafe
+    out = 0
+    mask = 0x7f000000
+    for i in range(4):
+        out >>= 1
+        out |= num & mask
+        mask >>= 8
+    return out
