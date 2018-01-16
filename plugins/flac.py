@@ -18,7 +18,7 @@ def md5(filename):
     else:
         _md5 = _md5_audio_data(audio_data)
 
-    logging.debug('plugins.flac.md5( %s ) returning: %s', filename, _md5)
+    logging.debug('plugins.flac.md5( %s ): Returning %s', filename, _md5)
     return _md5
 
 
@@ -46,7 +46,7 @@ def streaminfo_md5(filename):
     except mutagen.MutagenError as err:
         logging.error('Failed to open file: %s', err)
 
-    logging.debug('plugins.flac.streaminfo_md5( %s ) returning: %s', filename, str(md5))
+    logging.debug('plugins.flac.streaminfo_md5( %s ): Returning %s', filename, str(md5))
     return md5
 
 

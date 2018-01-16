@@ -54,7 +54,7 @@ def md5(filename):
         mp3_fh.read(audiodata.get('finish') - audiodata.get('start')))
     mp3_fh.close()
 
-    logging.debug('plugins.mp3.md5( %s ) returning: %s', filename, md5)
+    logging.debug('plugins.mp3.md5( %s ): Returning %s', filename, md5)
     return md5
 
 

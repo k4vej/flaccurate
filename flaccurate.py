@@ -146,16 +146,22 @@ class Flaccurate:
         logging.debug('_retrieve_checksum( %s )', filename)
         checksum = None
 
-        results = self.dbh.execute('SELECT md5 FROM checksums WHERE filename=?', (filename,))
-        checksum = results.fetchone()[0]
+        results = self.dbh.execute('SELECT md5 FROM checksums WHERE filename=?', (filename,)).fetchone()
 
-        logging.debug('_retrieve_checksum( %s ): returning %s', filename, checksum)
+        if( results is not None ):
+            checksum = results[0]
+        else:
+            logging.debug('_retrieve_checksum( %s ): No checksum found', filename)
+
+        logging.debug('_retrieve_checksum( %s ): Returning %s', filename, checksum)
         return checksum
 
     def _itterate_iglob(self, filetype):
         logging.debug('itterate_iglob( %s )', filetype)
+        logging.info('Processing %s files', filetype)
         count = 0
         for filename in glob.iglob(self.args.path + '**/*.' + filetype, recursive=True):
+            logging.info('%s: %s', filetype, filename)
             count += 1
             self._process_file(filename, filetype)
 
