@@ -35,6 +35,7 @@ class Flaccurate:
     def __init__(self):
         self.args = self._init_argparse()
         self.debug = self.args.debug
+        self.silent = self.args.silent
         self.log_level = self._init_logging()
         logging.debug('args: %s', vars(self.args))
 
@@ -72,6 +73,10 @@ class Flaccurate:
             help='enable debug', action='store_true'
         )
         parser.add_argument(
+            '-s', '--silent',
+            help='silent mode - will only output warnings or errors', action='store_true'
+        )
+        parser.add_argument(
             'path',
             nargs='?',
             type=str,
@@ -88,7 +93,12 @@ class Flaccurate:
         return parser.parse_args()
 
     def _init_logging(self):
-        log_level = 'debug' if self.debug else 'info'
+        if( self.debug ):
+            log_level = 'debug'
+        elif( self.silent ):
+            log_level = 'warning'
+        else:
+            log_level = 'info'
 
         LEVELS = {
             'debug': logging.DEBUG,
@@ -206,7 +216,7 @@ class Flaccurate:
             if( checksum_calculated == checksum_record ):
                 logging.debug('_process_file( %s, %s ): Checksum verified', filename, filetype)
             else:
-                logging.info('WARNING: %s Checksum failed (Current: %s Previous: %s)', filename, checksum_calculated, checksum_record)
+                logging.warning('%s: %s - Failed checksum (Current: %s Previous: %s)', filetype, filename, checksum_calculated, checksum_record)
         else:
             logging.debug('_process_file( %s, %s ): Inserting new checksum', filename, filetype)
             self._insert_checksum({
