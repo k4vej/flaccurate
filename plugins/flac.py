@@ -54,13 +54,13 @@ def _md5_audio_data(audio_data):
 
     hasher = hashlib.md5()
 
-    def update_md5(data):
-        hasher.update(data)
+    def update_md5(audio_data):
+        hasher.update(audio_data)
 
     try:
         audiotools.transfer_framelist_data(audio_data, update_md5)
-    except (IOError, ValueError) as err:
-        logging.error('Failed to _md5_audio_data: %s', err)
+    except (IOError, ValueError) as e:
+        logging.error('Failed to _md5_audio_data: %s', e.args[0])
         return None
     else:
         return str(hasher.hexdigest())

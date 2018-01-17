@@ -15,13 +15,13 @@ def md5(filename):
     """Calculate MD5 for an MP3 excluding ID3v1 and ID3v2 tags if
     present. See www.id3.org for tag format specifications."""
     logging.debug('plugins.mp3.md5( %s )', filename)
-    md5 = None
+    _md5 = None
 
     try:
         mp3_fh = open(filename, "rb")
     except FileNotFoundError:
         logging.error('Failed to open %s: Not found', filename)
-        return md5
+        return _md5
 
     # default starting position is complete file
     audiodata = {
@@ -50,12 +50,12 @@ def md5(filename):
 
     # Calculate MD5 using stuff between tags
     mp3_fh.seek(audiodata.get('start'))
-    md5 = _md5_audio_data(
+    _md5 = _md5_audio_data(
         mp3_fh.read(audiodata.get('finish') - audiodata.get('start')))
     mp3_fh.close()
 
     logging.debug('plugins.mp3.md5( %s ): Returning %s', filename, md5)
-    return md5
+    return _md5
 
 
 def _md5_audio_data(audio_data):
