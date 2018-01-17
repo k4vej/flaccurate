@@ -1,4 +1,6 @@
 import sqlite3
+import json
+import hashlib
 from pathlib import Path
 
 import logging
@@ -27,11 +29,13 @@ class Database:
             logging.info('Database not specified - defaulting to %s', self.DEFAULT_DB_FILE)
             self.db_file = self.DEFAULT_DB_FILE
 
+        self.db_md5_file = self.db_file + '.md5'
         self.dbh = self._init_db()
 
     def _init_db(self):
         logging.debug('_init_db( %s )', self.db_file)
 
+        # Only try to validate existing database
         db_exists = Path(self.db_file).is_file()
         if( db_exists ):
             logging.debug('_init_db( %s ): Database file found', self.db_file)
@@ -42,24 +46,47 @@ class Database:
 
         dbh = sqlite3.connect(self.db_file)
         dbh.execute("CREATE TABLE IF NOT EXISTS checksums(filename text PRIMARY KEY, md5 text NOT NULL, filetype text NOT NULL)")
+
         return dbh
 
-    # Validation functions should be treated special -
-    # they should return instantly on failure - not continue
-    # needlessly performing additional checks
+    # Returns instantly on any validation failure
+    # Performs two checks:
+    # 1. Internal sqlite integrity_check
+    # 2. Standalone checksum of the entire db_file
     def _valid_db(self):
         logging.debug('_valid_db( %s )', self.db_file)
 
+        # 1. Check sqlite is happy with the file
         with sqlite3.connect(self.db_file) as dbh:
             integrity_results = dbh.execute("PRAGMA integrity_check").fetchone()
 
             if( integrity_results is not None ):
-                if( integrity_results[0] != 'ok' ):
-                    logging.critical('_valid_db( %s ): Integrity check failed', self.db_file)
+                if( integrity_results[0] == 'ok' ):
+                    logging.info('Database integrity verified')
+                else:
+                    logging.critical('_valid_db( %s ): Database integrity failure', self.db_file)
                     return False
             else:
-                logging.critical('_valid_db( %s ): Failed to obtain integrity results', self.db_file)
+                logging.critical('_valid_db( %s ): Failed to obtain database integrity results', self.db_file)
                 return False
+
+        # 2. Check our db_file checksum
+        if(Path(self.db_md5_file).is_file()): # make sure it exists first
+            db_checksum_calculated = self._calculate_db_checksum()
+            db_checksum_record = self._retrieve_db_checksum()
+
+            if( db_checksum_calculated is None or
+                db_checksum_record is None ):
+                return False
+
+            if( db_checksum_calculated == db_checksum_record ):
+                logging.info('Database checksum verified')
+            else:
+                logging.critical('_valid_db( %s ): Database checksum failure (Current: %s Previous: %s)', self.db_file, db_checksum_calculated, db_checksum_record)
+                return False
+        else:
+            logging.critical('_valid_db( %s ): Database checksum file not found %s', self.db_file, self.db_md5_file)
+            return False
 
         return True
     
@@ -85,4 +112,37 @@ class Database:
             logging.debug('_retrieve_checksum( %s ): No checksum found', filename)
 
         logging.debug('_retrieve_checksum( %s ): Returning %s', filename, checksum)
+        return checksum
+
+    def _calculate_db_checksum(self):
+        logging.debug('_calculate_db_checksum( %s )', self.db_file)
+        checksum = None
+
+        try:
+            db_fileh = open(self.db_file, 'rb')
+        except IOError as e:
+            logging.critical('_calculate_db_checksum( %s ): Failed to calculate database checksum %s', self.db_file, e.args[0])
+        else:
+            hasher = hashlib.md5()
+            hasher.update(db_fileh.read())
+            checksum = str(hasher.hexdigest())
+            db_fileh.close()
+
+        logging.debug('_calculate_db_checksum( %s ): Returning %s', self.db_file, checksum)
+        return checksum
+
+    def _retrieve_db_checksum(self):
+        logging.debug('_retrieve_db_checksum( %s )', self.db_md5_file)
+        checksum = None
+
+        try:
+            db_md5_fileh = open(self.db_md5_file, 'r')
+        except IOError as e:
+            logging.critical('_retrieve_db_checksum( %s ): Failed to retrieve database checksum %s', self.db_md5_file, e.args[0])
+        else:
+            md5_file_content = json.load(db_md5_fileh)
+            checksum = md5_file_content[self.db_file]['md5']
+            db_md5_fileh.close()
+
+        logging.debug('_retrieve_db_checksum( %s ): Returning %s', self.db_md5_file, checksum)
         return checksum
