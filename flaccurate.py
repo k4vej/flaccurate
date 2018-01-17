@@ -5,11 +5,11 @@ import re
 import logging
 import argparse
 import importlib
+
 import filetype as filemagic
 import filetype.utils
 
-import sqlite3
-
+import flaccurate
 
 def main(args=None):
     # For all supported filetypes,
@@ -21,16 +21,17 @@ def main(args=None):
     # For each supported file type (read: plugin) (see: process_filetype())
     # For each matching file found in file type (see: itterate_iglob())
     # Calculate the audio md5 checksum: (see: _process_file())
-    # 1. If the database record exists for file (see: _retrieve_checksum())
+    # 1. If the database record exists for file (see: Database._retrieve_checksum())
     #       Compare new checksum against database record (see: _process_file())
     #           If checksum matches all good
     #           If checksum doesn't match report it
-    # 2. If the database has no record of file - insert it for first time (see: _insert_checksum())
+    # 2. If the database has no record of file - insert it for first time (see: Database._Database.insert_checksum())
 
     Flaccurate().process_all()
 
 
 class Flaccurate:
+    PLUGINS_PATH = 'plugins'
 
     def __init__(self):
         self.args = self._init_argparse()
@@ -39,8 +40,11 @@ class Flaccurate:
         self.log_level = self._init_logging()
         logging.debug('args: %s', vars(self.args))
 
-        self.db_file = './flaccurate.db'  # default unless specified
-        self.plugins_path = 'plugins'
+        try:
+            self.db = flaccurate.Database(self.args)
+        except RuntimeError as e:
+            logging.critical('%s - exiting', e.args[0])
+            sys.exit(1)
 
         if(self.args.path is None):
             logging.info('No path specified - nothing TODO - exiting...')
@@ -51,13 +55,6 @@ class Flaccurate:
                 logging.info('Specified path does not exist - exiting')
                 sys.exit(0)
 
-        if(self.args.database is None):
-            logging.info('No database specified - defaulting to %s', self.db_file)
-        else:
-            logging.info('Using database specified: %s', self.args.database)
-            self.db_file = self.args.database
-
-        self.dbh = self._init_db()
         self.plugins = self._init_plugins()
 
     def _init_argparse(self):
@@ -117,54 +114,24 @@ class Flaccurate:
         )
         return log_level
 
-    def _init_db(self):
-        logging.debug('_init_db( %s )', self.db_file)
-        dbh = sqlite3.connect(self.db_file)
-        dbh.execute("CREATE TABLE IF NOT EXISTS checksums(filename text PRIMARY KEY, md5 text NOT NULL, filetype text NOT NULL)")
-        return dbh
-
     def _init_plugins(self):
-        logging.debug('_init_plugins( %s )', self.plugins_path)
+        logging.debug('_init_plugins( %s )', self.PLUGINS_PATH)
         # Inspired by importdir by Aurelien Lourot
         # See: https://gitlab.com/aurelien-lourot/importdir
         plugins = {}
-        sys.path.append(self.plugins_path) # adds provided path to paths we can import from
-        for entry in os.listdir(self.plugins_path):
-            if os.path.isfile(os.path.join(self.plugins_path, entry)):
+        sys.path.append(self.PLUGINS_PATH) # adds provided path to paths we can import from
+        for entry in os.listdir(self.PLUGINS_PATH):
+            if os.path.isfile(os.path.join(self.PLUGINS_PATH, entry)):
                 regexp_result = re.search("(.+)\.py(c?)$", entry)
                 if regexp_result:  # found a module file name matching above regexp
                     module_name = regexp_result.groups()[0]
-                    logging.debug('_init_plugins( %s ): Found plugin %s', self.plugins_path, module_name)
+                    logging.debug('_init_plugins( %s ): Found plugin %s', self.PLUGINS_PATH, module_name)
                     plugins[module_name] = importlib.import_module(module_name)
         return plugins
 
     def _calculate_checksum(self, filename, filetype):
         logging.debug('_calculate_checksum( %s, %s )', filename, filetype)
         return self.plugins[filetype].md5(filename)
-
-    def _insert_checksum(self, data):
-        logging.debug('_insert_checksum( %s )', data)
-        # con.rollback() is called after the with block finishes with an exception, the
-        # exception is still raised and must be caught
-        try:
-            with self.dbh:
-                self.dbh.execute("INSERT OR IGNORE INTO checksums(filename, md5, filetype) values (?, ?, ?)", (data.get('filename'), data.get('md5'), data.get('filetype')))
-        except sqlite3.IntegrityError:
-            logging.error("Failed to insert into database for: %s", data.get('filename'))
-
-    def _retrieve_checksum(self, filename):
-        logging.debug('_retrieve_checksum( %s )', filename)
-        checksum = None
-
-        results = self.dbh.execute('SELECT md5 FROM checksums WHERE filename=?', (filename,)).fetchone()
-
-        if( results is not None ):
-            checksum = results[0]
-        else:
-            logging.debug('_retrieve_checksum( %s ): No checksum found', filename)
-
-        logging.debug('_retrieve_checksum( %s ): Returning %s', filename, checksum)
-        return checksum
 
     def _itterate_iglob(self, filetype):
         logging.debug('itterate_iglob( %s )', filetype)
@@ -210,7 +177,7 @@ class Flaccurate:
             return
 
         checksum_calculated = self._calculate_checksum( filename, filetype )
-        checksum_record = self._retrieve_checksum( filename )
+        checksum_record = self.db._retrieve_checksum( filename )
 
         if( checksum_record is not None ):
             if( checksum_calculated == checksum_record ):
@@ -219,7 +186,7 @@ class Flaccurate:
                 logging.warning('%s: %s - Failed checksum (Current: %s Previous: %s)', filetype, filename, checksum_calculated, checksum_record)
         else:
             logging.debug('_process_file( %s, %s ): Inserting new checksum', filename, filetype)
-            self._insert_checksum({
+            self.db._insert_checksum({
                 'filename': filename,
                 'md5': checksum_calculated,
                 'filetype': filetype
