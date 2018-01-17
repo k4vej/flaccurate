@@ -25,7 +25,7 @@ def main(args=None):
     #       Compare new checksum against database record (see: _process_file())
     #           If checksum matches all good
     #           If checksum doesn't match report it
-    # 2. If the database has no record of file - insert it for first time (see: Database._Database.insert_checksum())
+    # 2. If the database has no record of file - insert it for first time (see: Database._insert_checksum())
 
     Flaccurate().process_all()
 
