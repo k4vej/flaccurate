@@ -43,9 +43,11 @@ class Database:
                 raise RuntimeError('Database is not valid')
         else:
             logging.debug('_init_db( %s ): Database file not found, initialising', self.db_file)
+            self.checksum = None
 
         dbh = sqlite3.connect(self.db_file)
         dbh.execute("CREATE TABLE IF NOT EXISTS checksums(filename text PRIMARY KEY, md5 text NOT NULL, filetype text NOT NULL)")
+        self._update_db_checksum()
 
         return dbh
 
@@ -81,6 +83,7 @@ class Database:
 
             if( db_checksum_calculated == db_checksum_record ):
                 logging.info('Database checksum verified')
+                self.checksum = db_checksum_calculated
             else:
                 logging.critical('_valid_db( %s ): Database checksum failure (Current: %s Previous: %s)', self.db_file, db_checksum_calculated, db_checksum_record)
                 return False
@@ -99,6 +102,8 @@ class Database:
                 self.dbh.execute("INSERT OR IGNORE INTO checksums(filename, md5, filetype) values (?, ?, ?)", (data.get('filename'), data.get('md5'), data.get('filetype')))
         except sqlite3.IntegrityError:
             logging.error("Failed to insert into database for: %s", data.get('filename'))
+        else:
+            self._update_db_checksum()
 
     def _retrieve_checksum(self, filename):
         logging.debug('_retrieve_checksum( %s )', filename)
@@ -146,3 +151,27 @@ class Database:
 
         logging.debug('_retrieve_db_checksum( %s ): Returning %s', self.db_md5_file, checksum)
         return checksum
+
+    def _insert_db_checksum(self, data):
+        logging.debug('_insert_db_checksum( %s ): %s', self.db_md5_file, data)
+
+        try:
+            db_md5_fileh = open(self.db_md5_file, 'w')
+        except IOError as e:
+            logging.critical('_insert_db_checksum( %s ): Failed to insert database checksum %s', self.db_md5_file, e.args[0])
+        else:
+            json.dump(data, db_md5_fileh)
+            db_md5_fileh.close()
+
+    def _update_db_checksum(self):
+        logging.debug('_update_db_checksum( %s )', self.db_md5_file)
+
+        # Only update if its changed
+        db_checksum_calculated = self._calculate_db_checksum()
+        if( db_checksum_calculated != self.checksum ):
+            logging.debug('_update_db_checksum( %s ): Database checksum updated %s', self.db_md5_file, db_checksum_calculated)
+            self._insert_db_checksum({
+                self.db_file : {
+                    'md5' : db_checksum_calculated
+                }
+            })
