@@ -32,15 +32,35 @@ class Database:
     def _init_db(self):
         logging.debug('_init_db( %s )', self.db_file)
 
-        if( not self._valid_db() ):
-            raise RuntimeError('Database is not valid')
+        db_exists = Path(self.db_file).is_file()
+        if( db_exists ):
+            logging.debug('_init_db( %s ): Database file found', self.db_file)
+            if( not self._valid_db() ):
+                raise RuntimeError('Database is not valid')
+        else:
+            logging.debug('_init_db( %s ): Database file not found, initialising', self.db_file)
 
         dbh = sqlite3.connect(self.db_file)
         dbh.execute("CREATE TABLE IF NOT EXISTS checksums(filename text PRIMARY KEY, md5 text NOT NULL, filetype text NOT NULL)")
         return dbh
 
     def _valid_db(self):
-        return False
+        logging.debug('_valid_db( %s )', self.db_file)
+        valid = True
+
+        with sqlite3.connect(self.db_file) as dbh:
+            integrity_results = dbh.execute("PRAGMA integrity_check").fetchone()
+
+            if( integrity_results is not None ):
+                if( integrity_results[0] != 'ok' ):
+                    logging.critical('_valid_db( %s ): Integrity check failed', self.db_file)
+                    valid = False
+            else:
+                logging.critical('_valid_db( %s ): Failed to obtain integrity results', self.db_file)
+                valid = False
+
+        logging.debug('_valid_db( %s ): Returning %s', self.db_file, valid)
+        return valid
     
     def _insert_checksum(self, data):
         logging.debug('_insert_checksum( %s )', data)
