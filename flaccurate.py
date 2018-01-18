@@ -5,6 +5,7 @@ import re
 import logging
 import argparse
 import importlib
+from pathlib import Path
 
 import filetype as filemagic
 import filetype.utils
@@ -46,6 +47,14 @@ class Flaccurate:
             logging.critical('%s - exiting', e.args[0])
             sys.exit(1)
 
+        self.plugins = self._init_plugins()
+
+        # Perform no file processing - but quit after all
+        # initialisation and plugin loading
+        if(self.args.selfcheck):
+            logging.info('Self check complete - exiting...')
+            sys.exit(0)
+
         if(self.args.path is None):
             logging.info('No path specified - nothing TODO - exiting...')
             # implement checking for config elsewhere (file / env variable)
@@ -55,7 +64,6 @@ class Flaccurate:
                 logging.info('Specified path does not exist - exiting')
                 sys.exit(0)
 
-        self.plugins = self._init_plugins()
 
     def _init_argparse(self):
         # Note: most defaults are explicitly set to None
@@ -72,6 +80,10 @@ class Flaccurate:
         parser.add_argument(
             '-s', '--silent',
             help='silent mode - will only output warnings or errors', action='store_true'
+        )
+        parser.add_argument(
+            '-c', '--selfcheck',
+            help='performs all initialisation and plugin loading then exits', action='store_true'
         )
         parser.add_argument(
             'path',
@@ -119,14 +131,13 @@ class Flaccurate:
         # Inspired by importdir by Aurelien Lourot
         # See: https://gitlab.com/aurelien-lourot/importdir
         plugins = {}
-        sys.path.append(self.PLUGINS_PATH) # adds provided path to paths we can import from
-        for entry in os.listdir(self.PLUGINS_PATH):
-            if os.path.isfile(os.path.join(self.PLUGINS_PATH, entry)):
-                regexp_result = re.search("(.+)\.py(c?)$", entry)
-                if regexp_result:  # found a module file name matching above regexp
-                    module_name = regexp_result.groups()[0]
-                    logging.debug('_init_plugins( %s ): Found plugin %s', self.PLUGINS_PATH, module_name)
-                    plugins[module_name] = importlib.import_module(module_name)
+
+        for module_name, imported_module in sys.modules.items():
+            if( module_name.startswith( 'flaccurate.plugins.' ) ):
+                plugin_name = module_name.replace('flaccurate.plugins.','')
+                logging.debug('_init_plugins( %s ): Found plugin %s', self.PLUGINS_PATH, plugin_name)
+                plugins[plugin_name] = sys.modules[module_name]
+
         return plugins
 
     def _calculate_checksum(self, filename, filetype):
