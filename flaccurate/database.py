@@ -17,16 +17,16 @@ class Database:
 
         if(args.database is not None):
             logging.info('Database specified: %s', args.database)
-            if( Path(args.database).is_file() ):
+            if(Path(args.database).is_file()):
                 self.db_file = args.database
             else:
                 # TODO: THis should raise a file not found exception instead of continuing.
                 # If you specify a database that is not available we should not try to do anything
                 # else.  Maybe introduce a --force flag which continues through errors.
-                logging.error('Database specified not found - defaulting to %s', self.DEFAULT_DB_FILE)
+                logging.error('Database %s not found - defaulting to: %s', args.database, self.DEFAULT_DB_FILE)
                 self.db_file = self.DEFAULT_DB_FILE
         else:
-            logging.info('Database not specified - defaulting to %s', self.DEFAULT_DB_FILE)
+            logging.info('Database not specified - defaulting to: %s', self.DEFAULT_DB_FILE)
             self.db_file = self.DEFAULT_DB_FILE
 
         self.db_md5_file = self.db_file + '.md5'
@@ -37,17 +37,37 @@ class Database:
 
         # Only try to validate existing database
         db_exists = Path(self.db_file).is_file()
-        if( db_exists ):
+        if(db_exists):
             logging.debug('_init_db( %s ): Database file found', self.db_file)
-            if( not self._valid_db() ):
+            logging.info('Validating %s', self.db_file)
+            if(self._valid_db()):
+                logging.info('Database is valid')
+            else:
                 raise RuntimeError('Database is not valid')
         else:
             logging.debug('_init_db( %s ): Database file not found, initialising', self.db_file)
             self.checksum = None
 
-        dbh = sqlite3.connect(self.db_file)
+        # Always perform table creation and checksum update -
+        # Ensures a known starting point - rather than assuming the content exists in the file
+        #
+        # Not wrapped in a context manager:
+        # 1. Want to return the db handle to constructor, not garbage collect it -
+        #    so it is preserved as object attribute in self, for future use
+        # 2. No transaction commit or rollback required on the initial creation of the table
+        dbh = self._connect_db()
         dbh.execute("CREATE TABLE IF NOT EXISTS checksums(filename text PRIMARY KEY, md5 text NOT NULL, filetype text NOT NULL)")
         self._update_db_checksum()
+
+        return dbh
+
+    def _connect_db(self):
+        dbh = None
+        try:
+            dbh = sqlite3.connect(self.db_file)
+        except sqlite3.OperationalError as e:
+            logging.debug('_connect_db(): Failed to connect to %s: %s', self.db_file, e.args[0])
+            raise RuntimeError('Failed to connect to database')
 
         return dbh
 
@@ -58,40 +78,49 @@ class Database:
     def _valid_db(self):
         logging.debug('_valid_db( %s )', self.db_file)
 
-        # 1. Check sqlite is happy with the file
-        with sqlite3.connect(self.db_file) as dbh:
-            integrity_results = dbh.execute("PRAGMA integrity_check").fetchone()
+        if(self._db_integrity_verified() and
+            self._db_checksum_verified()):
+            return True
+        else:
+            return False
 
-            if( integrity_results is not None ):
-                if( integrity_results[0] == 'ok' ):
+    def _db_integrity_verified(self):
+        try:
+            with self._connect_db() as dbh:
+                integrity_results = dbh.execute("PRAGMA integrity_check").fetchone()
+        except sqlite3.OperationalError as e:
+            logging.critical('_valid_db( %s ): Failed to perform database integrity check', self.db_file)
+        else:
+            if(integrity_results is not None):
+                if(integrity_results[0] == 'ok'):
                     logging.info('Database integrity verified')
+                    return True
                 else:
                     logging.critical('_valid_db( %s ): Database integrity failure', self.db_file)
-                    return False
             else:
                 logging.critical('_valid_db( %s ): Failed to obtain database integrity results', self.db_file)
-                return False
 
-        # 2. Check our db_file checksum
+        return False
+
+    def _db_checksum_verified(self):
         if(Path(self.db_md5_file).is_file()): # make sure it exists first
             db_checksum_calculated = self._calculate_db_checksum()
             db_checksum_record = self._retrieve_db_checksum()
 
-            if( db_checksum_calculated is None or
-                db_checksum_record is None ):
+            if(db_checksum_calculated is None or
+                db_checksum_record is None):
                 return False
 
-            if( db_checksum_calculated == db_checksum_record ):
+            if(db_checksum_calculated == db_checksum_record):
                 logging.info('Database checksum verified')
                 self.checksum = db_checksum_calculated
+                return True
             else:
                 logging.critical('_valid_db( %s ): Database checksum failure (Current: %s Previous: %s)', self.db_file, db_checksum_calculated, db_checksum_record)
-                return False
         else:
             logging.critical('_valid_db( %s ): Database checksum file not found %s', self.db_file, self.db_md5_file)
-            return False
 
-        return True
+        return False
     
     def _insert_checksum(self, data):
         logging.debug('_insert_checksum( %s )', data)
@@ -100,8 +129,8 @@ class Database:
         try:
             with self.dbh:
                 self.dbh.execute("INSERT OR IGNORE INTO checksums(filename, md5, filetype) values (?, ?, ?)", (data.get('filename'), data.get('md5'), data.get('filetype')))
-        except sqlite3.IntegrityError:
-            logging.error("Failed to insert into database for: %s", data.get('filename'))
+        except (sqlite3.IntegrityError, sqlite3.OperationalError) as e:
+            logging.error("Failed to insert %s into database: %s", data.get('filename'), e.args[0])
         else:
             self._update_db_checksum()
 
@@ -111,7 +140,7 @@ class Database:
 
         results = self.dbh.execute('SELECT md5 FROM checksums WHERE filename=?', (filename,)).fetchone()
 
-        if( results is not None ):
+        if(results is not None):
             checksum = results[0]
         else:
             logging.debug('_retrieve_checksum( %s ): No checksum found', filename)
@@ -168,7 +197,7 @@ class Database:
 
         # Only update if its changed
         db_checksum_calculated = self._calculate_db_checksum()
-        if( db_checksum_calculated != self.checksum ):
+        if(db_checksum_calculated != self.checksum):
             logging.debug('_update_db_checksum( %s ): Database checksum updated %s', self.db_md5_file, db_checksum_calculated)
             self._insert_db_checksum({
                 self.db_file : {
