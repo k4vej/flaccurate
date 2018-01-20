@@ -157,9 +157,10 @@ class Flaccurate:
 
     def _valid_file(self, filename, filetype):
         logging.debug('_valid_file( %s, %s )', filename, filetype)
-        # Delegate file validation to the filetype module, has been#
-        # alias'd to filemagic on import - so it doesn't clash with
-        # our own internal references to a filetype variable.
+        # Delegate file validation to the filetype module.
+        # Aliased to filemagic on import - already using a variable
+        # called filetype throughout.
+
         # The filetype module does file magic checking in pure python,
         # so no deps or bindings on libmagic or anything else.
         # Interface is a bit clunky, considered duplicating its validation
@@ -167,16 +168,20 @@ class Flaccurate:
         # means it will apply to every supported filetype (read: plugin)
         # without any additional work.
         #
-        # 1. We first need to retrieve a filemagic object of the type we want
-        # to validate against.  This in itself is a nightmare, as the
-        # get_type() function compares the argumenet passed in against its
-        # enumerated list of filetypes uses is() which does not play nicely
-        # with the argument we are passing ("filetype"), as it takes the form
-        # of a key from a dictionary.  So was never matching against its own
-        # extension string - need to jump through an intern() hoop to get the
+        # 1. Retrieve a filemagic object of the type we want
+        # to validate against.  Bit of a nightmare, as the function:
+        # get_type() compares the "filetype" argument passed in,
+        # against an enumerated list of filetypes, using is().
+        # is() does not play nicely if the filetype argument takes the form
+        # of a key from a dictionary - never matching against what looks like
+        # identical strings.  Need to jump through an intern() hoop to get the
         # "correct string" for comparison.
-        # 2. We then need to pass in the appropriate bytes from the file being
-        # tested, so that the match() function can do its magic work.
+        # 2. Using the filemagic object returned from step one above, via:
+        # get_type() - call it's instance method: match() passing in the
+        # appropriate bytes from the file being tested - this is where the
+        # the magic happens..
+        # The public API is at least helpful here, providing a utility function:
+        # get_signature_bytes(filename)
         # Return from match() is Boolean, so just pass it back to caller.
         return filemagic.get_type(None,sys.intern(filetype)).match( filemagic.utils.get_signature_bytes( filename ) )
 
