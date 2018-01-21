@@ -41,11 +41,7 @@ class Flaccurate:
         self.log_level = self._init_logging()
         logging.debug('args: %s', vars(self.args))
 
-        try:
-            self.db = flaccurate.Database(self.args)
-        except RuntimeError as e:
-            logging.critical('%s - exiting', e.args[0])
-            sys.exit(1)
+        self.db = self._init_database()
 
         self.plugins = self._init_plugins()
 
@@ -125,6 +121,15 @@ class Flaccurate:
             format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
         )
         return log_level
+
+    def _init_database(self):
+        db = None
+        try:
+            self.db = flaccurate.Database(self.args)
+        except RuntimeError as e:
+            logging.critical('%s - exiting', e.args[0])
+            sys.exit(1)
+        return db
 
     def _init_plugins(self):
         logging.debug('_init_plugins( %s )', self.PLUGINS_PATH)
