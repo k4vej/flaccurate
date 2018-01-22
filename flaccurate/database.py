@@ -12,19 +12,23 @@ class Database:
     def __init__(self, args):
         self.debug = args.debug
         self.silent = args.silent
+        self.force = args.force
         self.args = args
         logging.debug('Database __init__ args: %s', vars(self.args))
 
         if(args.database is not None):
-            logging.info('Database specified: %s', args.database)
             if(Path(args.database).is_file()):
+                logging.info('Database found: %s', args.database)
+                self.db_file = args.database
+            elif(self.force):
+                logging.info('Database not found: %s - forcing creation', args.database)
                 self.db_file = args.database
             else:
-                # TODO: THis should raise a file not found exception instead of continuing.
-                # If you specify a database that is not available we should not try to do anything
-                # else.  Maybe introduce a --force flag which continues through errors.
-                logging.error('Database %s not found - defaulting to: %s', args.database, self.DEFAULT_DB_FILE)
-                self.db_file = self.DEFAULT_DB_FILE
+                # Specified database not found do nothing - don't try and guess what
+                # is intended. If user wants to continue wuth a custom db name there is a
+                # --force flag
+                logging.info('Database not found: %s - use --force to create it', args.database)
+                raise RuntimeError('Database not found')
         else:
             logging.info('Database not specified - defaulting to: %s', self.DEFAULT_DB_FILE)
             self.db_file = self.DEFAULT_DB_FILE
