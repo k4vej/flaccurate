@@ -1,6 +1,8 @@
 pylint
 pytest
 
+nuitka
+
 mutagen
 fmoo-audiotools
 filetype
