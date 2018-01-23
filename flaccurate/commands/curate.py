@@ -57,7 +57,7 @@ For general help:
 
     def _calculate_checksum(self, filename, filetype):
         logging.debug('_calculate_checksum( %s, %s )', filename, filetype)
-        return self.plugins[filetype].md5(filename)
+        return self.plugins.plugin(filetype).md5(filename)
 
     def _itterate_iglob(self, filetype):
         logging.debug('itterate_iglob( %s )', filetype)
@@ -127,5 +127,5 @@ For general help:
         self._itterate_iglob(filetype)
 
     def process_all(self):
-        for filetype in self.supported_filetypes():
+        for filetype in self.plugins.supported_filetypes():
             self.process_filetype(filetype)

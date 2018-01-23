@@ -1,16 +1,9 @@
-import os
 import sys
-import glob
-import re
-import logging
-import argparse
-import importlib
-from pathlib import Path
-
-import filetype as filemagic
-import filetype.utils
 
 import flaccurate.exception
+
+import logging
+logging.getLogger(__name__)
 
 class Base(object):
     """The Base class from which all flaccurate.commands.* should inherit.
@@ -21,8 +14,6 @@ Implements the --usage output for each derived class, where they are expected
 to have a docstring header unique to the class explaining what the command does
 and any specific options required.
 """
-    PLUGINS_PATH = 'plugins'
-
     def __init__(self, args):
         self.args = args
 
@@ -72,22 +63,13 @@ and any specific options required.
         return db
 
     def _init_plugins(self):
-        logging.debug('_init_plugins( %s )', self.PLUGINS_PATH)
-        return self._discover_plugins()
-
-    def _discover_plugins(self):
-        return {module_name.replace('flaccurate.plugins.',''): sys.modules[module_name]
-                    for module_name in sys.modules.keys()
-                        if( self._valid_plugin(module_name))}
-
-    def _valid_plugin(self,module_name):
-        if( module_name.startswith( 'flaccurate.plugins.' ) ):
-            return True
-        else:
-            return False
-
-    def supported_filetypes(self):
-        return self.plugins.keys()
+        plugins = None
+        try:
+            plugins = flaccurate.Plugins(self.args)
+        except RuntimeError as e:
+            logging.critical('%s - exiting', e.args[0])
+            sys.exit(1)
+        return plugins
 
     def run(self):
         raise NotImplementedError('This is a base class - override me.')
