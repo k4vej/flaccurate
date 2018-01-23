@@ -73,15 +73,18 @@ and any specific options required.
 
     def _init_plugins(self):
         logging.debug('_init_plugins( %s )', self.PLUGINS_PATH)
-        plugins = {}
+        return self._discover_plugins()
 
-        for module_name, imported_module in sys.modules.items():
-            if( module_name.startswith( 'flaccurate.plugins.' ) ):
-                plugin_name = module_name.replace('flaccurate.plugins.','')
-                logging.debug('_init_plugins( %s ): Found plugin %s', self.PLUGINS_PATH, plugin_name)
-                plugins[plugin_name] = sys.modules[module_name]
+    def _discover_plugins(self):
+        return {module_name.replace('flaccurate.plugins.',''): sys.modules[module_name]
+                    for module_name in sys.modules.keys()
+                        if( self._valid_plugin(module_name))}
 
-        return plugins
+    def _valid_plugin(self,module_name):
+        if( module_name.startswith( 'flaccurate.plugins.' ) ):
+            return True
+        else:
+            return False
 
     def supported_filetypes(self):
         return self.plugins.keys()

@@ -11,7 +11,7 @@ def main():
 
     # Here we'll try to dynamically match the command the user is trying to run
     # with a pre-defined command class we've already created.
-    # Source: https://github.com/rdegges/skele-cli
+    # Inspired by: https://github.com/rdegges/skele-cli
     for user_command in args.command:
         if hasattr(flaccurate.commands, user_command):
             module = getattr(flaccurate.commands, user_command)
@@ -87,13 +87,16 @@ def _init_argparse():
     return parser.parse_args()
 
 def _discover_commands():
-    discovered_commands = []
-    for module_name, imported_module in sys.modules.items():
-        if(module_name.startswith('flaccurate.commands.')):
-            command_name = module_name.replace('flaccurate.commands.','')
-            if(command_name != 'base'):
-                discovered_commands.append(command_name)
-    return discovered_commands
+    return [module_name.replace('flaccurate.commands.','')
+                for module_name in sys.modules.keys()
+                    if(_valid_command(module_name))]
+
+def _valid_command(command):
+    if( command.startswith('flaccurate.commands.') and
+        command != 'flaccurate.commands.base' ):
+        return True
+    else:
+        return False
 
 if __name__ == '__main__':
     main()
