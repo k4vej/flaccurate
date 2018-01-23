@@ -17,21 +17,27 @@ class Database:
         logging.debug('Database __init__ args: %s', vars(self.args))
 
         if(args.database is not None):
-            if(Path(args.database).is_file()):
-                logging.info('Database found: %s', args.database)
-                self.db_file = args.database
-            elif(self.force):
-                logging.info('Database not found: %s - forcing creation', args.database)
-                self.db_file = args.database
-            else:
-                # Specified database not found do nothing - don't try and guess what
-                # is intended. If user wants to continue wuth a custom db name there is a
-                # --force flag
-                logging.info('Database not found: %s - use --force to create it', args.database)
-                raise RuntimeError('Database not found')
+            logging.info('Database specified: %s', args.database)
+            self.db_file = args.database
         else:
             logging.info('Database not specified - defaulting to: %s', self.DEFAULT_DB_FILE)
             self.db_file = self.DEFAULT_DB_FILE
+
+        if(Path(self.db_file).is_file()):
+            logging.info('Database found: %s', self.db_file)
+        elif(self.force):
+            logging.info('Database not found - forcing creation: %s', self.db_file)
+        elif(self.db_file == self.DEFAULT_DB_FILE):
+            # This is here for convenience of first time users omitting options.
+            # At least do something on the initial invokation instead of complain
+            # about database filenames not existing.
+            logging.info('Database not found - inaugural launch, creating: %s', self.db_file)
+        else:
+            # Specified database not found do nothing - don't try and guess what
+            # is intended. If user wants to continue wuth a custom db name there is a
+            # --force flag
+            logging.info('Database not found: %s - use --force to create it', self.db_file)
+            raise RuntimeError('Database not found')
 
         self.db_md5_file = self.db_file + '.md5'
         self.dbh = self._init_db()
