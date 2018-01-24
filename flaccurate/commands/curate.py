@@ -18,10 +18,10 @@ If an entry exists in the checksum database from a previous run,
 it is compared to check for accuracy, any discrepancies are highlighted.
 
 Usage:
-    cli.py [--usage] curate
+    flaccurate.py [--usage] curate
 
 For general help:
-    cli.py --help
+    flaccurate.py --help
 """
     def __init__(self,args):
         super().__init__(args)

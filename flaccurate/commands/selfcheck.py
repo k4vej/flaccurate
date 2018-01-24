@@ -11,10 +11,10 @@ It then perfoms a database integrity check, and finally verifies the database ch
 to ensure it has not changed since our last recorded change.
 
 Usage:
-    cli.py [--usage] selfcheck
+    flaccurate.py [--usage] selfcheck
 
 For general help:
-    cli.py --help
+    flaccurate.py --help
 """
     def __init__(self,args):
         super().__init__(args)

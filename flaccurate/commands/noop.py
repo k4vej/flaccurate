@@ -16,10 +16,10 @@ exits cleanly.  If you see any output (other than this --usage),
 then something is probably broken.
 
 Usage:
-    cli.py [--usage] noop
+    flaccurate.py [--usage] noop
 
 For general help:
-    cli.py --help
+    flaccurate.py --help
 """
 
     def __init__(self,args):
